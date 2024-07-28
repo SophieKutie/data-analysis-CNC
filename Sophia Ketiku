@@ -1,0 +1,104 @@
+import dash
+from dash import dcc, html
+from dash.dependencies import Input, Output
+import plotly.graph_objs as go
+import pandas as pd
+
+# URLs for the CSV files
+urls = [
+    'https://raw.githubusercontent.com/SophieKutie/data-analysis-CNC/main/T1-ROB_value240624.csv',
+    'https://raw.githubusercontent.com/SophieKutie/data-analysis-CNC/main/T1-ROB_value250624.csv',
+    'https://raw.githubusercontent.com/SophieKutie/data-analysis-CNC/main/T1-ROB_value260624.csv',
+    'https://raw.githubusercontent.com/SophieKutie/data-analysis-CNC/main/T1-ROB_value270624.csv',
+    'https://raw.githubusercontent.com/SophieKutie/data-analysis-CNC/main/T1-ROB_value280624.csv',
+    'https://raw.githubusercontent.com/SophieKutie/data-analysis-CNC/main/T1-ROB_value290624.csv',
+    'https://raw.githubusercontent.com/SophieKutie/data-analysis-CNC/main/T1-ROB_value300624.csv'
+]
+
+# Load the data into pandas DataFrames
+sensor_data = [pd.read_csv(url) for url in urls]
+
+# Display the first few rows of each DataFrame to understand their structure
+sensor_data[0].head(), sensor_data[1].head()
+
+# Convert the 'Time (BST)' column to datetime for each dataframe
+for df in sensor_data:
+    df['Time (BST)'] = pd.to_datetime(df['Time (BST)']) # Iterate over each DataFrame in the list
+
+# Concatenate all dataframes into a single one for easier date filtering
+all_sensor_data = pd.concat(sensor_data)
+# Layout of the app
+app.layout = html.Div([
+    html.Nav(
+        className='navbar navbar-expand-lg navbar-dark bg-dark',
+
+        children=[
+            html.A('Temperature Dashboard', className='navbar-brand', href='#'),
+            html.Div(
+                className='collapse navbar-collapse',
+                children=[
+                    html.Ul(
+                        className='navbar-nav mr-auto',
+                        children=[
+                            html.Li(className='nav-item active', children=[
+                                html.A('Home', className='nav-link', href='#')
+                            ]),
+                            html.Li(className='nav-item', children=[
+                                html.A('About', className='nav-link', href='#')
+                            ])
+                        ]
+                    )
+                ]
+            )
+        ],
+    ),
+  # Indent the following Div to be a child of the Nav element
+       
+    html.Div(
+        className='container mt-4',
+        children=[
+            html.H1('Temperature Trends for Each Sensor', style={'color': 'white'}),
+            dcc.DatePickerRange(
+                id='date-picker-range',
+                # Use the concatenated dataframe for min and max dates
+                start_date=all_sensor_data['Time (BST)'].min().date(),  # Extract date part
+                end_date=all_sensor_data['Time (BST)'].max().date(),  # Extract date part
+                display_format='YYYY-MM-DD',
+                style={'backgroundColor': '#333', 'color': 'white'}
+            ),
+            dcc.Dropdown(
+                id='sensor-dropdown',
+                options=[{'label': col, 'value': col} for col in sensor_data[0].columns if col != 'Time (BST)'], # Use the columns from the first dataframe
+                value=[sensor_data[0].columns[1]],  # Default value
+                multi=True,
+                style={'backgroundColor': '#333', 'color': 'white'}
+            ),
+dcc.Graph(id='temperature-graph', config={'displayModeBar': False})
+        ], style={'backgroundColor': '#222', 'padding': '20px'})
+    ])
+
+# Callback to update the graph based on the selected sensors and date range
+@app.callback(
+    Output('temperature-graph', 'figure'),
+    [Input('sensor-dropdown', 'value'),
+     Input('date-picker-range', 'start_date'),
+     Input('date-picker-range', 'end_date')]
+)
+def update_graph(selected_sensors, start_date, end_date):
+    filtered_data = sensor_data[(sensor_data['Time (BST)'] >= start_date) & (sensor_data['Time (BST)'] <= end_date)]
+    traces = []
+    for sensor in selected_sensors:
+        traces.append(go.Scatter(x=filtered_data['Time (BST)'], y=filtered_data[sensor], mode='lines', name=sensor))
+    layout = go.Layout(
+        title='Temperature Trends',
+        xaxis={'title': 'Time', 'color': 'white'},
+        yaxis={'title': 'Temperature', 'color': 'white'},
+        paper_bgcolor='#222',
+        plot_bgcolor='#222',
+        font={'color': 'white'}
+    )
+    return {'data': traces, 'layout': layout}
+
+# Run the app
+if __name__ == '__main__':
+    app.run_server(mode='inline', port=8000)
